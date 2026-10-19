@@ -6,8 +6,8 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Assessment Analytics Dashboard</title>
 <link rel="stylesheet" href="style.css">
-<!-- cdnjs has no chart.umd.min.js for 4.4.4 (404), which left every chart and the leaderboard blank. -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<!-- Chart.js 4.4.4, served from this repo so the dashboard doesn't depend on a CDN. -->
+<script src="chart.umd.js"></script>
 </head>
 <body>
 
@@ -29,8 +29,9 @@
     <h2>Connect to your assessment data</h2>
     <p class="muted">
       This dashboard is static — it has no server of its own. Paste either the Google Sheet
-      link (read directly, no deployment or key needed; the answer key comes from
-      local/rubrics.json) or an Apps Script Web App URL plus its admin key.
+      link (read directly, no deployment or key needed; multiple choice is marked by the
+      sheet's Correct? column, written and video answers by the Scores tab) or an Apps
+      Script Web App URL plus its admin key.
     </p>
     <label>Google Sheet link or Web App URL
       <input id="endpointInput" type="url" placeholder="https://docs.google.com/spreadsheets/d/.../edit" required>

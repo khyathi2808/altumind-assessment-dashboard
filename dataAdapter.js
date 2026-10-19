@@ -39,11 +39,16 @@ export async function fetchFromSheet(sheetUrl) {
   return { rubrics, responses, sessions, scores };
 }
 
+/** The full rubric (local/rubrics.json, git-ignored: it holds the answer key) when it's there,
+ *  else rubrics.public.json: question metadata only (section, kind, role, competency, tag),
+ *  no answers. With the public file, MCQs are marked from the sheet's own Correct? column. */
 async function fetchRubrics() {
-  let res;
-  try { res = await fetch("local/rubrics.json", { cache: "no-store" }); } catch (e) { res = null; }
-  if (!res || !res.ok) throw new ApiError("local/rubrics.json is missing. It holds the answer key and is kept out of git; regenerate it from rubrics.gs.");
-  return res.json();
+  for (const path of ["local/rubrics.json", "rubrics.public.json"]) {
+    let res;
+    try { res = await fetch(path, { cache: "no-store" }); } catch (e) { res = null; }
+    if (res && res.ok) return res.json();
+  }
+  throw new ApiError("No question metadata found: rubrics.public.json is missing.");
 }
 
 async function fetchTab(id, tab, optional) {

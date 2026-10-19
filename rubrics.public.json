@@ -1,0 +1,682 @@
+{
+ "version": 1,
+ "note": "Question metadata only - no answer key, options, prompts or rubric text. Generated from local/rubrics.json.",
+ "scale": {
+  "0": "No signal",
+  "1": "Weak",
+  "2": "Adequate",
+  "3": "Strong"
+ },
+ "dimensions": {
+  "algorithmic": "Algorithmic thinking",
+  "estimation": "Estimation",
+  "data": "Data reading",
+  "computation": "Computation",
+  "critical": "Critical reasoning"
+ },
+ "competencies": {
+  "ownership": "Ownership",
+  "ambiguity": "Ambiguity Tolerance",
+  "collaboration": "Collaboration",
+  "resilience": "Resilience",
+  "detail": "Attention to Detail",
+  "empathy": "Customer Empathy"
+ },
+ "roles": {
+  "marketing": "Marketing",
+  "sales": "Sales",
+  "product_design": "Product Design",
+  "full_stack": "Full Stack",
+  "backend": "Backend",
+  "frontend": "Frontend",
+  "ai_coding": "AI Coding"
+ },
+ "quantOrder": [
+  "QM1",
+  "QM2",
+  "QM3",
+  "QM4",
+  "QM5",
+  "QM6",
+  "QM7",
+  "QM8",
+  "QM9",
+  "QM10",
+  "QM11",
+  "QM12",
+  "QM13",
+  "QM14",
+  "Q1",
+  "Q4",
+  "Q6",
+  "Q8",
+  "Q9",
+  "Q10"
+ ],
+ "commOrder": [
+  "C1",
+  "C3",
+  "C4",
+  "C5",
+  "C6"
+ ],
+ "items": {
+  "QM1": {
+   "id": "QM1",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "computation"
+   ],
+   "tag": "Arithmetic"
+  },
+  "QM2": {
+   "id": "QM2",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "algorithmic"
+   ],
+   "tag": "Pattern recognition"
+  },
+  "QM3": {
+   "id": "QM3",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "data"
+   ],
+   "tag": "Data reading"
+  },
+  "QM4": {
+   "id": "QM4",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "computation"
+   ],
+   "tag": "Probability"
+  },
+  "QM5": {
+   "id": "QM5",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "computation"
+   ],
+   "tag": "Ratio and proportion"
+  },
+  "QM6": {
+   "id": "QM6",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "algorithmic"
+   ],
+   "tag": "Logical deduction"
+  },
+  "QM7": {
+   "id": "QM7",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "estimation"
+   ],
+   "tag": "Order-of-magnitude estimation"
+  },
+  "QM8": {
+   "id": "QM8",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "algorithmic"
+   ],
+   "tag": "Conditional logic"
+  },
+  "QM9": {
+   "id": "QM9",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "critical"
+   ],
+   "tag": "Root-cause elimination"
+  },
+  "QM10": {
+   "id": "QM10",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "data"
+   ],
+   "tag": "Data reading, multi-category"
+  },
+  "QM11": {
+   "id": "QM11",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "algorithmic"
+   ],
+   "tag": "Bottleneck scaling"
+  },
+  "QM12": {
+   "id": "QM12",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "critical"
+   ],
+   "tag": "Statistical reasoning"
+  },
+  "QM13": {
+   "id": "QM13",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "algorithmic"
+   ],
+   "tag": "Sequence completion"
+  },
+  "QM14": {
+   "id": "QM14",
+   "kind": "mcq",
+   "section": "quant",
+   "dims": [
+    "computation"
+   ],
+   "tag": "Breakeven"
+  },
+  "Q1": {
+   "id": "Q1",
+   "kind": "subjective",
+   "section": "quant",
+   "dims": [
+    "estimation"
+   ],
+   "video": false,
+   "tag": "Guesstimation"
+  },
+  "Q4": {
+   "id": "Q4",
+   "kind": "subjective",
+   "section": "quant",
+   "dims": [
+    "data",
+    "critical"
+   ],
+   "video": false,
+   "tag": "Data reading"
+  },
+  "Q6": {
+   "id": "Q6",
+   "kind": "subjective",
+   "section": "quant",
+   "dims": [
+    "algorithmic",
+    "critical"
+   ],
+   "video": false,
+   "tag": "Algorithmic thinking"
+  },
+  "Q8": {
+   "id": "Q8",
+   "kind": "subjective",
+   "section": "quant",
+   "dims": [
+    "computation"
+   ],
+   "video": false,
+   "tag": "Computation under ambiguity"
+  },
+  "Q9": {
+   "id": "Q9",
+   "kind": "subjective",
+   "section": "quant",
+   "dims": [
+    "critical"
+   ],
+   "video": false,
+   "tag": "Reasoning under uncertainty"
+  },
+  "Q10": {
+   "id": "Q10",
+   "kind": "subjective",
+   "section": "quant",
+   "dims": [
+    "algorithmic",
+    "critical"
+   ],
+   "video": false,
+   "tag": "Root-cause diagnosis"
+  },
+  "C1": {
+   "id": "C1",
+   "kind": "subjective",
+   "section": "comm",
+   "dims": [
+    "written"
+   ],
+   "video": false,
+   "tag": "Written"
+  },
+  "C3": {
+   "id": "C3",
+   "kind": "subjective",
+   "section": "comm",
+   "dims": [
+    "customer"
+   ],
+   "video": false,
+   "tag": "Mom's Test critique"
+  },
+  "C4": {
+   "id": "C4",
+   "kind": "subjective",
+   "section": "comm",
+   "dims": [
+    "customer"
+   ],
+   "video": false,
+   "tag": "Mom's Test critique"
+  },
+  "C5": {
+   "id": "C5",
+   "kind": "subjective",
+   "section": "comm",
+   "dims": [
+    "video"
+   ],
+   "video": true,
+   "tag": "Video"
+  },
+  "C6": {
+   "id": "C6",
+   "kind": "subjective",
+   "section": "comm",
+   "dims": [
+    "video"
+   ],
+   "video": true,
+   "tag": "Video"
+  },
+  "marketing_ownership": {
+   "id": "marketing_ownership",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "marketing",
+   "competency": "ownership",
+   "tag": "Ownership (Marketing)"
+  },
+  "marketing_ambiguity": {
+   "id": "marketing_ambiguity",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "marketing",
+   "competency": "ambiguity",
+   "tag": "Ambiguity Tolerance (Marketing)"
+  },
+  "marketing_collaboration": {
+   "id": "marketing_collaboration",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "marketing",
+   "competency": "collaboration",
+   "tag": "Collaboration (Marketing)"
+  },
+  "marketing_resilience": {
+   "id": "marketing_resilience",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "marketing",
+   "competency": "resilience",
+   "tag": "Resilience (Marketing)"
+  },
+  "marketing_detail": {
+   "id": "marketing_detail",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "marketing",
+   "competency": "detail",
+   "tag": "Attention to Detail (Marketing)"
+  },
+  "marketing_empathy": {
+   "id": "marketing_empathy",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "marketing",
+   "competency": "empathy",
+   "tag": "Customer Empathy (Marketing)"
+  },
+  "sales_ownership": {
+   "id": "sales_ownership",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "sales",
+   "competency": "ownership",
+   "tag": "Ownership (Sales)"
+  },
+  "sales_ambiguity": {
+   "id": "sales_ambiguity",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "sales",
+   "competency": "ambiguity",
+   "tag": "Ambiguity Tolerance (Sales)"
+  },
+  "sales_collaboration": {
+   "id": "sales_collaboration",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "sales",
+   "competency": "collaboration",
+   "tag": "Collaboration (Sales)"
+  },
+  "sales_resilience": {
+   "id": "sales_resilience",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "sales",
+   "competency": "resilience",
+   "tag": "Resilience (Sales)"
+  },
+  "sales_detail": {
+   "id": "sales_detail",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "sales",
+   "competency": "detail",
+   "tag": "Attention to Detail (Sales)"
+  },
+  "sales_empathy": {
+   "id": "sales_empathy",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "sales",
+   "competency": "empathy",
+   "tag": "Customer Empathy (Sales)"
+  },
+  "product_design_ownership": {
+   "id": "product_design_ownership",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "product_design",
+   "competency": "ownership",
+   "tag": "Ownership (Product Design)"
+  },
+  "product_design_ambiguity": {
+   "id": "product_design_ambiguity",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "product_design",
+   "competency": "ambiguity",
+   "tag": "Ambiguity Tolerance (Product Design)"
+  },
+  "product_design_collaboration": {
+   "id": "product_design_collaboration",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "product_design",
+   "competency": "collaboration",
+   "tag": "Collaboration (Product Design)"
+  },
+  "product_design_resilience": {
+   "id": "product_design_resilience",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "product_design",
+   "competency": "resilience",
+   "tag": "Resilience (Product Design)"
+  },
+  "product_design_detail": {
+   "id": "product_design_detail",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "product_design",
+   "competency": "detail",
+   "tag": "Attention to Detail (Product Design)"
+  },
+  "product_design_empathy": {
+   "id": "product_design_empathy",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "product_design",
+   "competency": "empathy",
+   "tag": "Customer Empathy (Product Design)"
+  },
+  "full_stack_ownership": {
+   "id": "full_stack_ownership",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "full_stack",
+   "competency": "ownership",
+   "tag": "Ownership (Full Stack)"
+  },
+  "full_stack_ambiguity": {
+   "id": "full_stack_ambiguity",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "full_stack",
+   "competency": "ambiguity",
+   "tag": "Ambiguity Tolerance (Full Stack)"
+  },
+  "full_stack_collaboration": {
+   "id": "full_stack_collaboration",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "full_stack",
+   "competency": "collaboration",
+   "tag": "Collaboration (Full Stack)"
+  },
+  "full_stack_resilience": {
+   "id": "full_stack_resilience",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "full_stack",
+   "competency": "resilience",
+   "tag": "Resilience (Full Stack)"
+  },
+  "full_stack_detail": {
+   "id": "full_stack_detail",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "full_stack",
+   "competency": "detail",
+   "tag": "Attention to Detail (Full Stack)"
+  },
+  "full_stack_empathy": {
+   "id": "full_stack_empathy",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "full_stack",
+   "competency": "empathy",
+   "tag": "Customer Empathy (Full Stack)"
+  },
+  "backend_ownership": {
+   "id": "backend_ownership",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "backend",
+   "competency": "ownership",
+   "tag": "Ownership (Backend)"
+  },
+  "backend_ambiguity": {
+   "id": "backend_ambiguity",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "backend",
+   "competency": "ambiguity",
+   "tag": "Ambiguity Tolerance (Backend)"
+  },
+  "backend_collaboration": {
+   "id": "backend_collaboration",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "backend",
+   "competency": "collaboration",
+   "tag": "Collaboration (Backend)"
+  },
+  "backend_resilience": {
+   "id": "backend_resilience",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "backend",
+   "competency": "resilience",
+   "tag": "Resilience (Backend)"
+  },
+  "backend_detail": {
+   "id": "backend_detail",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "backend",
+   "competency": "detail",
+   "tag": "Attention to Detail (Backend)"
+  },
+  "backend_empathy": {
+   "id": "backend_empathy",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "backend",
+   "competency": "empathy",
+   "tag": "Customer Empathy (Backend)"
+  },
+  "frontend_ownership": {
+   "id": "frontend_ownership",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "frontend",
+   "competency": "ownership",
+   "tag": "Ownership (Frontend)"
+  },
+  "frontend_ambiguity": {
+   "id": "frontend_ambiguity",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "frontend",
+   "competency": "ambiguity",
+   "tag": "Ambiguity Tolerance (Frontend)"
+  },
+  "frontend_collaboration": {
+   "id": "frontend_collaboration",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "frontend",
+   "competency": "collaboration",
+   "tag": "Collaboration (Frontend)"
+  },
+  "frontend_resilience": {
+   "id": "frontend_resilience",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "frontend",
+   "competency": "resilience",
+   "tag": "Resilience (Frontend)"
+  },
+  "frontend_detail": {
+   "id": "frontend_detail",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "frontend",
+   "competency": "detail",
+   "tag": "Attention to Detail (Frontend)"
+  },
+  "frontend_empathy": {
+   "id": "frontend_empathy",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "frontend",
+   "competency": "empathy",
+   "tag": "Customer Empathy (Frontend)"
+  },
+  "ai_coding_ownership": {
+   "id": "ai_coding_ownership",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "ai_coding",
+   "competency": "ownership",
+   "tag": "Ownership (AI Coding)"
+  },
+  "ai_coding_ambiguity": {
+   "id": "ai_coding_ambiguity",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "ai_coding",
+   "competency": "ambiguity",
+   "tag": "Ambiguity Tolerance (AI Coding)"
+  },
+  "ai_coding_collaboration": {
+   "id": "ai_coding_collaboration",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "ai_coding",
+   "competency": "collaboration",
+   "tag": "Collaboration (AI Coding)"
+  },
+  "ai_coding_resilience": {
+   "id": "ai_coding_resilience",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "ai_coding",
+   "competency": "resilience",
+   "tag": "Resilience (AI Coding)"
+  },
+  "ai_coding_detail": {
+   "id": "ai_coding_detail",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "ai_coding",
+   "competency": "detail",
+   "tag": "Attention to Detail (AI Coding)"
+  },
+  "ai_coding_empathy": {
+   "id": "ai_coding_empathy",
+   "kind": "subjective",
+   "section": "beh",
+   "dims": [],
+   "role": "ai_coding",
+   "competency": "empathy",
+   "tag": "Customer Empathy (AI Coding)"
+  }
+ }
+}

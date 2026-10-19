@@ -106,6 +106,7 @@ export function analyse(rubrics, responses, sessions, scores, config) {
     c.ans[qid] = {
       text: norm(r["Answer Text"]),
       sel: norm(r["Selected Option"]),
+      correctCol: norm(r["Correct?"]).toLowerCase(), // the sheet's own MCQ marking, used when the rubric has no key
       video: norm(r["Video Link"]),
       time: Number(r["Time Spent (sec)"]) || 0
     };
@@ -133,7 +134,8 @@ export function analyse(rubrics, responses, sessions, scores, config) {
       const rec = { qid, it, a, sessEnded };
       if (it.kind === "mcq") {
         rec.answered = !!(a && a.sel);
-        rec.correct = rec.answered && normOpt(a.sel) === normOpt(it.key);
+        // Answer key when the full rubric is loaded; otherwise the sheet's Correct? column.
+        rec.correct = rec.answered && (it.key != null ? normOpt(a.sel) === normOpt(it.key) : a.correctCol === "yes");
         rec.v = rec.answered ? (rec.correct ? 1 : 0) : sessEnded ? 0 : null;
       } else {
         rec.empty = !a || (it.video ? !a.video : !a.text.trim());
