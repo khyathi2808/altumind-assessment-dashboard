@@ -1,5 +1,5 @@
 import { CONFIG } from "./config.js";
-import { fetchAssessmentData, ApiError } from "./dataAdapter.js";
+import { fetchAssessmentData, fetchFromSheet, isSheetUrl, loadLocalSettings, ApiError } from "./dataAdapter.js";
 import { analyse, STATUS } from "./analysis.js";
 
 const LS_ENDPOINT = "assessmentDashboard:endpoint";
@@ -9,12 +9,13 @@ const $ = sel => document.querySelector(sel);
 const charts = {}; // Chart.js instances, destroyed and rebuilt on each refresh
 
 let STATE = { rubrics: null, responses: [], sessions: [], scores: [], candidates: [], itemStats: {}, summary: null };
-let sort = { key: "total", dir: "desc" };
+let sort = { key: "rank", dir: "asc" };
 let filters = { role: "all", status: "all", search: "" };
 
 init();
 
-function init() {
+async function init() {
+  $("#exportBtn").addEventListener("click", exportCsv);
   $("#connectForm").addEventListener("submit", onConnect);
   $("#changeBackend").addEventListener("click", showConnectScreen);
   $("#refreshBtn").addEventListener("click", () => loadAndRender(true));
@@ -30,11 +31,16 @@ function init() {
     });
   });
 
-  const endpoint = localStorage.getItem(LS_ENDPOINT) || CONFIG.defaultEndpoint || "";
+  const local = await loadLocalSettings();
+  const endpoint = localStorage.getItem(LS_ENDPOINT) || local.sheetUrl || CONFIG.defaultEndpoint || "";
+  if (endpoint && !localStorage.getItem(LS_ENDPOINT) && isSheetUrl(endpoint)) localStorage.setItem(LS_ENDPOINT, endpoint);
   const key = sessionStorage.getItem(LS_KEY) || "";
-  if (endpoint && key) {
+  if (endpoint && (key || isSheetUrl(endpoint))) {
     $("#endpointInput").value = endpoint;
     $("#keyInput").value = key;
+    // Auto-connecting: show a loading message, not the connect form, while the sheet downloads.
+    $("#connectScreen").classList.add("hidden");
+    $("#loadingScreen").classList.remove("hidden");
     loadAndRender(false);
   } else {
     $("#endpointInput").value = endpoint;
@@ -51,7 +57,11 @@ async function onConnect(e) {
   e.preventDefault();
   const endpoint = $("#endpointInput").value.trim();
   const key = $("#keyInput").value.trim();
-  if (!endpoint || !key) return;
+  if (!endpoint || (!key && !isSheetUrl(endpoint))) {
+    $("#connectError").textContent = "An admin key is needed for an Apps Script URL. A Google Sheet link needs none.";
+    $("#connectError").classList.remove("hidden");
+    return;
+  }
   localStorage.setItem(LS_ENDPOINT, endpoint);
   // The admin key is deliberately kept in sessionStorage, not localStorage: it clears when
   // the tab closes, rather than sitting on disk indefinitely on a shared or public machine.
@@ -65,17 +75,19 @@ async function loadAndRender(forceShowErrors) {
   const endpoint = localStorage.getItem(LS_ENDPOINT), key = sessionStorage.getItem(LS_KEY);
   setStatus("Loading…");
   try {
-    const data = await fetchAssessmentData(endpoint, key);
+    const data = isSheetUrl(endpoint) ? await fetchFromSheet(endpoint) : await fetchAssessmentData(endpoint, key);
     STATE.rubrics = data.rubrics; STATE.responses = data.responses; STATE.sessions = data.sessions; STATE.scores = data.scores;
     const result = analyse(STATE.rubrics, STATE.responses, STATE.sessions, STATE.scores, CONFIG);
     STATE.candidates = result.candidates; STATE.itemStats = result.itemStats; STATE.summary = result.summary;
     $("#connectScreen").classList.add("hidden");
+    $("#loadingScreen").classList.add("hidden");
     $("#dashboard").classList.remove("hidden");
     populateFilters();
     renderAll();
-    setStatus("Updated " + new Date().toLocaleTimeString());
+    if (typeof Chart !== "undefined") setStatus("Updated " + new Date().toLocaleTimeString());
   } catch (err) {
     setStatus("");
+    $("#loadingScreen").classList.add("hidden");
     const msg = err instanceof ApiError ? err.message : "Unexpected error: " + err.message;
     if (forceShowErrors || $("#dashboard").classList.contains("hidden")) {
       showConnectScreen();
@@ -103,13 +115,16 @@ function roleLabel(id) { return (STATE.rubrics.roles && STATE.rubrics.roles[id])
 
 function renderAll() {
   renderStatCards();
-  renderFunnelChart();
-  renderStatusChart();
-  renderRoleChart();
-  renderScoreHistograms();
-  renderItemDifficultyChart();
-  renderScoringCoverageChart();
-  renderLeaderboard();
+  renderLeaderboard(); // plain HTML: render it before the charts so it never depends on Chart.js
+  if (typeof Chart === "undefined") {
+    setStatus("Charts unavailable: the Chart.js library didn't load (offline, or the CDN is blocked).");
+    return;
+  }
+  // Each chart on its own, so one failure leaves the rest of the dashboard standing.
+  [renderFunnelChart, renderStatusChart, renderRoleChart, renderScoreHistograms,
+   renderGradesChart, renderItemDifficultyChart, renderScoringCoverageChart].forEach(fn => {
+    try { fn(); } catch (err) { console.error(fn.name + " failed:", err); }
+  });
 }
 
 /* ---------- stat cards ---------- */
@@ -117,6 +132,7 @@ function renderStatCards() {
   const s = STATE.summary;
   const cards = [
     ["Candidates (real)", s.n],
+    ["Ranked (all sections scored)", s.rankedN],
     ["Completed both sessions", s.endedBoth + " / " + s.n],
     ["Meets all gates", (s.byStatus.pass || 0)],
     ["Flagged for integrity review", s.flaggedN],
@@ -232,6 +248,72 @@ function renderItemDifficultyChart() {
   });
 }
 
+/** Grade buckets in scale order. 0-3 are one hue light->dark (an ordered scale, not
+ *  categories); blank and not-graded are neutral grays so they never read as a grade. */
+const GRADE_BUCKETS = ["3", "2", "1", "0", "blank", "pending"];
+const GRADE_LABELS = { 3: "3 Strong", 2: "2 Adequate", 1: "1 Weak", 0: "0 No signal", blank: "Blank answer (counts as 0)", pending: "Not graded yet" };
+function gradeColors() {
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
+  // Ordinal blue ramp, validated (validate_palette.js --ordinal) against each surface.
+  return dark
+    ? { 3: "#9ec5f4", 2: "#5598e7", 1: "#2a78d6", 0: "#184f95", blank: "#6b675e", pending: "#3a3833", gap: "#1d1a14" }
+    : { 3: "#0d366b", 2: "#1c5cab", 1: "#3987e5", 0: "#86b6ef", blank: "#a9a59c", pending: "#dedad1", gap: "#ffffff" };
+}
+
+/** One row per written/video question; behavioral items grouped by competency across roles.
+ *  Only answers whose session has ended are counted (an in-progress answer isn't final). */
+function gradeBreakdown() {
+  const R = STATE.rubrics, rows = new Map();
+  const rowFor = it => {
+    const key = it.section === "beh" ? "beh_" + it.competency : it.id;
+    if (!rows.has(key)) {
+      const label = it.section === "beh"
+        ? "Behavioral · " + ((R.competencies && R.competencies[it.competency]) || it.competency)
+        : it.id + " · " + String(it.tag || "").split(":")[0];
+      rows.set(key, { label, order: it.section === "beh" ? 2 : it.section === "comm" ? 1 : 0, counts: Object.fromEntries(GRADE_BUCKETS.map(b => [b, 0])) });
+    }
+    return rows.get(key);
+  };
+  STATE.candidates.forEach(c => Object.values(c.recs).forEach(rec => {
+    if (rec.it.kind !== "subjective" || !rec.sessEnded) return;
+    const b = rec.autoZero ? "blank" : rec.score ? String(Math.min(3, Math.max(0, Math.round(rec.score.avg)))) : "pending";
+    rowFor(rec.it).counts[b]++;
+  }));
+  return [...rows.values()].sort((a, b) => a.order - b.order);
+}
+
+function renderGradesChart() {
+  const rows = gradeBreakdown(), t = themeColors(), g = gradeColors();
+  destroy("grades");
+  charts.grades = new Chart($("#gradesChart"), {
+    type: "bar",
+    data: {
+      labels: rows.map(r => r.label),
+      datasets: GRADE_BUCKETS.map(b => ({
+        label: GRADE_LABELS[b], data: rows.map(r => r.counts[b]),
+        backgroundColor: g[b], borderColor: g.gap, borderWidth: 1, borderSkipped: false, borderRadius: 2
+      }))
+    },
+    options: {
+      indexAxis: "y", maintainAspectRatio: true,
+      interaction: { mode: "index", axis: "y", intersect: false },
+      plugins: {
+        legend: { position: "top", labels: { color: t.text, boxWidth: 12 } },
+        tooltip: { callbacks: {
+          label: ctx => {
+            const total = GRADE_BUCKETS.reduce((s, b) => s + rows[ctx.dataIndex].counts[b], 0);
+            return `${ctx.dataset.label}: ${ctx.raw} (${total ? Math.round(ctx.raw / total * 100) : 0}%)`;
+          }
+        } }
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: t.text }, grid: { color: t.grid }, title: { display: true, text: "Answers", color: t.text } },
+        y: { stacked: true, ticks: { color: t.text, autoSkip: false }, grid: { display: false } }
+      }
+    }
+  });
+}
+
 function renderScoringCoverageChart() {
   const s = STATE.summary;
   const t = themeColors();
@@ -257,25 +339,37 @@ function baseBarOptions(t, extra) {
 }
 
 /* ---------- leaderboard ---------- */
-function renderLeaderboard() {
+/** Rank shown in the table: within the selected role when a role filter is on, else overall. */
+function rankOf(c) { return filters.role !== "all" ? (c.roleRank[filters.role] ?? null) : c.rank; }
+
+function filteredSortedRows() {
   let rows = STATE.candidates.slice();
   if (filters.role !== "all") rows = rows.filter(c => c.roles.includes(filters.role));
   if (filters.status !== "all") rows = rows.filter(c => c.status === filters.status);
   if (filters.search) rows = rows.filter(c => (c.name + " " + c.email).toLowerCase().includes(filters.search));
 
+  const get = c => {
+    if (sort.key === "name") return c.name || c.email;
+    if (sort.key === "status") return c.status;
+    if (sort.key === "rank") return rankOf(c);
+    if (sort.key === "total") return c.total;
+    return c[sort.key] ? c[sort.key].pct : null; // quant / comm / beh are {pct, ...} objects
+  };
   rows.sort((a, b) => {
-    const get = c => (sort.key === "name" ? c.name || c.email : sort.key === "status" ? c.status : c[sort.key]);
     const av = get(a), bv = get(b);
-    const cmp = typeof av === "string" || typeof bv === "string"
-      ? String(av || "").localeCompare(String(bv || ""))
-      : (av == null ? -1 : av) - (bv == null ? -1 : bv);
+    if (av == null || bv == null) return av == null && bv == null ? 0 : av == null ? 1 : -1; // blanks always last
+    const cmp = typeof av === "string" || typeof bv === "string" ? String(av).localeCompare(String(bv)) : av - bv;
     return sort.dir === "asc" ? cmp : -cmp;
   });
+  return rows;
+}
 
+function renderLeaderboard() {
+  const rows = filteredSortedRows();
   $("#leaderboardCount").textContent = rows.length + " candidate" + (rows.length === 1 ? "" : "s");
-  $("#leaderboardBody").innerHTML = rows.map((c, i) => `
+  $("#leaderboardBody").innerHTML = rows.map(c => `
     <tr>
-      <td>${i + 1}</td>
+      <td>${rankOf(c) == null ? '<span class="muted" title="Not ranked: both sessions not completed">—</span>' : "<b>" + rankOf(c) + "</b>" + (c.provisional ? '<span class="muted" title="Provisional: some answers not graded yet">*</span>' : "")}</td>
       <td>${esc(c.name || "(no name)")}<div class="muted small">${esc(c.email)}</div></td>
       <td>${c.roles.map(roleLabel).join(", ")}</td>
       <td>${fmtPct(c.quant.pct)}</td>
@@ -287,4 +381,21 @@ function renderLeaderboard() {
       <td>${c.integrityFlags.length || "—"}</td>
     </tr>`).join("");
 }
+function exportCsv() {
+  const pct = p => (p == null ? "" : Math.round(p * 10) / 10);
+  const cell = v => { const s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const head = ["Rank", "Provisional", "Name", "Email", "Roles", "Quant %", "Comm %", "Beh %", "Total %", "Status", "Unscored answers", "Integrity flags"];
+  const lines = [head].concat(filteredSortedRows().map(c => [
+    rankOf(c) ?? "", c.rank != null && c.provisional ? "yes" : "", c.name, c.email, c.roles.map(roleLabel).join("; "),
+    pct(c.quant.pct), pct(c.comm.pct), pct(c.beh.pct), pct(c.total), STATUS[c.status].label,
+    c.unscored.length, c.integrityFlags.map(f => f.text).join("; ")
+  ])).map(r => r.map(cell).join(","));
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "candidate-ranking-" + new Date().toISOString().slice(0, 10) + (filters.role !== "all" ? "-" + filters.role : "") + ".csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m])); }

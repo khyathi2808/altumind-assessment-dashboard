@@ -40,6 +40,8 @@ export const CONFIG = {
 
   // Candidates whose email matches one of these is excluded from every chart and stat —
   // keep this in sync with whatever your grading backend treats as test/staff accounts.
+  // Mirrors common.gs's TEST_EMAIL_* lists — change both together.
   excludeEmailPrefixes: ["test", "rohitkum"],
-  excludeEmailDomains: ["altumindglobal.com"]
+  excludeEmailDomains: ["altumindglobal.com", "mailinator.com"],
+  excludeEmailSubstrings: ["altumindglobal"]
 };

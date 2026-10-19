@@ -25,8 +25,9 @@ function wmean(list) {
 
 export function isExcludedEmail(email, config) {
   const e = emailKey(email);
-  if (!e) return true;
+  if (!e || e.indexOf("@") === -1) return true;
   if (config.excludeEmailPrefixes.some(p => e.indexOf(p) === 0)) return true;
+  if ((config.excludeEmailSubstrings || []).some(s => e.includes(s))) return true;
   const domain = e.split("@")[1] || "";
   return config.excludeEmailDomains.includes(domain);
 }
@@ -187,6 +188,7 @@ export function analyse(rubrics, responses, sessions, scores, config) {
   applyGatesAndStatus(cands, config);
 
   const candidates = [...cands.values()];
+  applyRanks(candidates);
   return { candidates, itemStats: computeItemStats(candidates, R), summary: computeSummary(candidates, config) };
 }
 
@@ -209,6 +211,25 @@ function applyGatesAndStatus(cands, config) {
     else if (c.provisional || c.gateMissing.length) c.status = "likely";
     else c.status = "pass";
   });
+}
+
+/**
+ * Overall rank, plus rank within each role. Only candidates who finished both sessions and
+ * have a score in every section are ranked: a total built from fewer sections isn't
+ * comparable. Ties on total break on the weakest section (floor), then Quant. Ranks are
+ * provisional while a candidate still has unscored answers (c.provisional).
+ */
+function applyRanks(candidates) {
+  const n = v => (v == null ? -1 : v);
+  const ranked = candidates
+    // All three sections must have a score: a total averaged over just one graded section
+    // (e.g. Comm 100%, Quant and Beh still ungraded) isn't comparable to a full one.
+    .filter(c => c.ended.s1 && c.ended.s2 && c.quant.pct != null && c.comm.pct != null && c.beh.pct != null)
+    .sort((a, b) => b.total - a.total || n(b.floor) - n(a.floor) || n(b.quant.pct) - n(a.quant.pct));
+  candidates.forEach(c => { c.rank = null; c.roleRank = {}; });
+  ranked.forEach((c, i) => { c.rank = i + 1; });
+  const perRole = {};
+  ranked.forEach(c => c.roles.forEach(r => { perRole[r] = (perRole[r] || 0) + 1; c.roleRank[r] = perRole[r]; }));
 }
 
 /** MCQ difficulty (% correct) and discrimination (top-27% minus bottom-27% correct rate,
@@ -249,8 +270,9 @@ function computeSummary(candidates, config) {
   const unscoredN = candidates.reduce((a, c) => a + c.unscored.length, 0);
   const avg = key => { const v = candidates.map(c => c[key] && c[key].pct).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
   const flaggedN = candidates.filter(c => c.integrityFlags.length).length;
+  const rankedN = candidates.filter(c => c.rank != null).length;
   return {
-    n, startedBoth, endedBoth, byStatus, byRole,
+    n, startedBoth, endedBoth, byStatus, byRole, rankedN,
     aiScoredN, humanScoredN, unscoredN, flaggedN,
     sectionAverages: { quant: avg("quant"), comm: avg("comm"), beh: avg("beh") },
     priorityPool: candidates.filter(c => c.quant.mcq.pct != null && c.quant.mcq.pct >= config.mcqPriorityMin).length

@@ -6,7 +6,8 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Assessment Analytics Dashboard</title>
 <link rel="stylesheet" href="style.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<!-- cdnjs has no chart.umd.min.js for 4.4.4 (404), which left every chart and the leaderboard blank. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -19,19 +20,23 @@
   </div>
 </header>
 
+<section id="loadingScreen" class="connect-screen hidden">
+  <p class="muted">Loading assessment data from the Google Sheet… (about 7,500 answers, a few seconds)</p>
+</section>
+
 <section id="connectScreen" class="connect-screen">
   <form id="connectForm" class="connect-card">
-    <h2>Connect to your assessment backend</h2>
+    <h2>Connect to your assessment data</h2>
     <p class="muted">
-      This dashboard is static — it has no server of its own. It fetches your data directly
-      from your Apps Script Web App, in your browser, using the same admin key your review
-      dashboard uses. Nothing is sent anywhere else.
+      This dashboard is static — it has no server of its own. Paste either the Google Sheet
+      link (read directly, no deployment or key needed; the answer key comes from
+      local/rubrics.json) or an Apps Script Web App URL plus its admin key.
     </p>
-    <label>Web App URL
-      <input id="endpointInput" type="url" placeholder="https://script.google.com/macros/s/.../exec" required>
+    <label>Google Sheet link or Web App URL
+      <input id="endpointInput" type="url" placeholder="https://docs.google.com/spreadsheets/d/.../edit" required>
     </label>
-    <label>Admin key
-      <input id="keyInput" type="password" placeholder="Your ADMIN_KEY" required autocomplete="off">
+    <label>Admin key <span class="muted small">(Web App URL only)</span>
+      <input id="keyInput" type="password" placeholder="Not needed for a Sheet link" autocomplete="off">
     </label>
     <p class="muted small">
       The admin key is kept only in this browser tab's session storage — it is never written
@@ -86,6 +91,12 @@
   </section>
 
   <section class="chart-card wide">
+    <h3>Written &amp; video grades by question</h3>
+    <p class="muted small">Grade per answer (0–3) from the Scores tab: AI first pass, a reviewer's score replaces it. Behavioral questions are grouped by competency across roles. Hover a bar for counts.</p>
+    <canvas id="gradesChart" height="150"></canvas>
+  </section>
+
+  <section class="chart-card wide">
     <h3>MCQ difficulty (% correct) — red bars discriminate poorly between strong and weak candidates</h3>
     <canvas id="difficultyChart" height="90"></canvas>
   </section>
@@ -98,13 +109,14 @@
         <select id="roleFilter"></select>
         <select id="statusFilter"></select>
         <span id="leaderboardCount" class="muted small"></span>
+        <button id="exportBtn" class="btn" type="button">Download CSV</button>
       </div>
     </div>
     <div class="table-wrap">
       <table id="leaderboardTable">
         <thead>
           <tr>
-            <th data-sort="total">#</th>
+            <th data-sort="rank" title="Overall rank, or rank within the role when a role filter is on. * = provisional, some answers not graded yet">Rank</th>
             <th data-sort="name">Candidate</th>
             <th>Roles</th>
             <th data-sort="quant">Quant</th>
@@ -120,7 +132,9 @@
       </table>
     </div>
     <p class="muted small">
-      For per-question scoring, model answers, or to score an individual answer, use your
+      Ranked: candidates who completed both sessions and have a score in every section, by weighted total (ties: weakest section,
+      then Quant). — means not ranked yet; * means provisional because some answers are still
+      being graded. For per-question scoring, model answers, or to score an individual answer, use your
       reviewer dashboard (review.html) — this view is for the aggregate picture only.
     </p>
   </section>

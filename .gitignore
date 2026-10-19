@@ -12,3 +12,5 @@ wheels/
 .env
 
 *.md
+# Private: answer key + sheet link. Never commit.
+local/
