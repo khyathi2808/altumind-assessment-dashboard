@@ -136,6 +136,8 @@ function renderStatCards() {
     ["Completed both sessions", s.endedBoth + " / " + s.n],
     ["Meets all gates", (s.byStatus.pass || 0)],
     ["Flagged for integrity review", s.flaggedN],
+    ["Sessions auto-submitted (tab hidden)", s.tabHiddenFlags],
+    ["Sessions auto-submitted (time ran out)", s.timeLimitFlags],
     ["AI-scored items", s.aiScoredN],
     ["Human-scored items", s.humanScoredN],
     ["Still unscored", s.unscoredN],
@@ -149,6 +151,26 @@ function renderStatCards() {
 }
 function wavg(arr) { const v = arr.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; }
 function fmtPct(p) { return p == null ? "n/a" : Math.round(p) + "%"; }
+
+/** Raw points behind a section's percentage, e.g. "12/14 MCQ, 9.0/18 written" or "14.0/18".
+ *  Each answer is out of 3 (an MCQ counts 0 or 3, a written/video grade 0-3). Only answers with
+ *  a value are counted, so a blank answer in an ended session adds 0 to the score and 3 to the max. */
+function sectionRaw(c, sectionKey) {
+  const recs = Object.values(c.recs).filter(r => r.it.section === sectionKey);
+  if (!recs.length) return "";
+  if (sectionKey === "quant") {
+    const mcq = recs.filter(r => r.it.kind === "mcq"), subj = recs.filter(r => r.it.kind === "subjective");
+    const subjScored = subj.filter(r => r.v != null);
+    const subjSum = subjScored.reduce((a, r) => a + r.v * 3, 0), subjMax = subjScored.length * 3;
+    const parts = [];
+    if (mcq.length) parts.push(mcq.filter(r => r.correct).length + "/" + mcq.length + " MCQ");
+    if (subj.length) parts.push(subjMax ? subjSum.toFixed(1) + "/" + subjMax + " written" : "written not yet scored");
+    return parts.join(", ");
+  }
+  const scored = recs.filter(r => r.v != null);
+  if (!scored.length) return "not yet scored";
+  return scored.reduce((a, r) => a + r.v * 3, 0).toFixed(1) + "/" + (scored.length * 3);
+}
 
 /* ---------- charts (Chart.js, loaded from CDN in index.html) ---------- */
 function destroy(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
@@ -369,16 +391,16 @@ function renderLeaderboard() {
   $("#leaderboardCount").textContent = rows.length + " candidate" + (rows.length === 1 ? "" : "s");
   $("#leaderboardBody").innerHTML = rows.map(c => `
     <tr>
-      <td>${rankOf(c) == null ? '<span class="muted" title="Not ranked: both sessions not completed">—</span>' : "<b>" + rankOf(c) + "</b>" + (c.provisional ? '<span class="muted" title="Provisional: some answers not graded yet">*</span>' : "")}</td>
+      <td>${rankOf(c) == null ? '<span class="muted" title="Not ranked: needs both sessions completed and a score in every section">—</span>' : "<b>" + rankOf(c) + "</b>" + (c.provisional ? '<span class="muted" title="Provisional: some answers not graded yet">*</span>' : "")}</td>
       <td>${esc(c.name || "(no name)")}<div class="muted small">${esc(c.email)}</div></td>
       <td>${c.roles.map(roleLabel).join(", ")}</td>
-      <td>${fmtPct(c.quant.pct)}</td>
-      <td>${fmtPct(c.comm.pct)}</td>
-      <td>${fmtPct(c.beh.pct)}</td>
+      <td>${fmtPct(c.quant.pct)}<div class="muted small">${esc(sectionRaw(c, "quant"))}</div></td>
+      <td>${fmtPct(c.comm.pct)}<div class="muted small">${esc(sectionRaw(c, "comm"))}</div></td>
+      <td>${fmtPct(c.beh.pct)}<div class="muted small">${esc(sectionRaw(c, "beh"))}</div></td>
       <td><b>${fmtPct(c.total)}</b></td>
       <td><span class="badge badge-${STATUS[c.status].tone}">${STATUS[c.status].label}</span></td>
       <td>${c.unscored.length || "—"}</td>
-      <td>${c.integrityFlags.length || "—"}</td>
+      <td${c.integrityFlags.length ? ` title="${esc(c.integrityFlags.map(f => f.text).join("\n"))}" style="cursor:help"` : ""}>${c.integrityFlags.length || "—"}</td>
     </tr>`).join("");
 }
 function exportCsv() {

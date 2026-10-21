@@ -273,8 +273,15 @@ function computeSummary(candidates, config) {
   const avg = key => { const v = candidates.map(c => c[key] && c[key].pct).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
   const flaggedN = candidates.filter(c => c.integrityFlags.length).length;
   const rankedN = candidates.filter(c => c.rank != null).length;
+  // Integrity flags split by cause. These count sessions, not candidates: one candidate can
+  // have a flag on each session, so the two add up to more than flaggedN.
+  let tabHiddenFlags = 0, timeLimitFlags = 0;
+  candidates.forEach(c => c.integrityFlags.forEach(f => {
+    if (f.level === "hard") tabHiddenFlags++;
+    else if (f.level === "info") timeLimitFlags++;
+  }));
   return {
-    n, startedBoth, endedBoth, byStatus, byRole, rankedN,
+    n, startedBoth, endedBoth, byStatus, byRole, rankedN, tabHiddenFlags, timeLimitFlags,
     aiScoredN, humanScoredN, unscoredN, flaggedN,
     sectionAverages: { quant: avg("quant"), comm: avg("comm"), beh: avg("beh") },
     priorityPool: candidates.filter(c => c.quant.mcq.pct != null && c.quant.mcq.pct >= config.mcqPriorityMin).length
