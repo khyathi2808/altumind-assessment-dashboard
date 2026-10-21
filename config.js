@@ -35,6 +35,17 @@ export const CONFIG = {
   // sort in the leaderboard — mirrors the same cutoff the AI grading pipeline uses.
   mcqPriorityMin: 75,
 
+  // Time analysis (the section below the leaderboard). These raise "speed review" signals:
+  // things worth a person checking, never proof of cheating on their own.
+  timing: {
+    maxCharsPerSec: 8,      // a written answer appearing faster than this wasn't typed (normal is ~1.4/s)
+    minCharsForSpeed: 150,  // ...only judged on answers at least this long
+    fastMcqSec: 10,         // a correct MCQ answered in under this many seconds is "fast"
+    fastMcqMin: 7,          // ...this many of them (out of 14) raises the signal
+    fastestPct: 10,         // "fast overall + top score": speed in the fastest X% of ranked candidates...
+    topScorePct: 25         // ...and total score in the top Y%
+  },
+
   // Labels shown in the UI, keyed by the `section` value used in rubrics.json.
   sectionLabels: { quant: "Quantitative", comm: "Communication", beh: "Behavioral" },
 

@@ -92,3 +92,12 @@ th:hover { color: var(--ink); }
 
 /* Roles and flag badges wrap instead of pushing Unscored / Flags off the right edge. */
 #leaderboardTable td.wrap { white-space: normal; min-width: 110px; max-width: 200px; }
+
+/* Time analysis section (below the leaderboard) */
+:root { --speed: #5b3fa8; --speed-bg: #ece6f8; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --speed: #c3b2f2; --speed-bg: #2c2444; } }
+.time-section h2 { margin: 12px 0 4px; font-size: 18px; }
+.time-section p { margin: 0 0 12px; }
+.badge-speed { background: var(--speed-bg); color: var(--speed); }
+#timeTable td.wrap { white-space: normal; min-width: 140px; max-width: 320px; }
+#timeTable th { cursor: pointer; }

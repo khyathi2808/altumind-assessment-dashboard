@@ -145,6 +145,57 @@
     </p>
   </section>
 
+  <!-- ===== Time analysis: added below everything else; reads the same data, changes nothing above ===== -->
+  <section class="time-section">
+    <h2>Time analysis</h2>
+    <p class="muted small">
+      How long candidates took, and where speed and score don't fit together. Timings exclude
+      blank, auto-submitted and video answers. Speed index compares each answer with that
+      question's typical time: 1.0 is typical, 0.5 is twice as fast. Purple signals are
+      <b>reasons to review, not proof</b> — a quick, strong candidate can trip them too.
+    </p>
+    <div id="timeCards" class="stat-grid"></div>
+  </section>
+
+  <section class="chart-grid">
+    <div class="chart-card">
+      <h3>Time vs. total score</h3>
+      <p class="muted small">One dot per ranked candidate. Usually slower = higher; purple dots have a speed signal.</p>
+      <canvas id="timeScatter"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Ranking with time — top 20</h3>
+      <p class="muted small">Total score by rank; the label shows total time. Purple = speed signal.</p>
+      <canvas id="timeRankChart"></canvas>
+    </div>
+  </section>
+
+  <section class="leaderboard-card">
+    <div class="leaderboard-header">
+      <h3>Ranking with time</h3>
+      <div class="leaderboard-controls">
+        <label class="small"><input id="timeOnlyFlagged" type="checkbox"> Only candidates with a speed signal</label>
+        <span id="timeCount" class="muted small"></span>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="timeTable">
+        <thead>
+          <tr>
+            <th data-tsort="rank">Rank</th>
+            <th data-tsort="name">Candidate</th>
+            <th data-tsort="total">Total</th>
+            <th data-tsort="totalSec">Time spent</th>
+            <th data-tsort="avgSec">Avg / question</th>
+            <th data-tsort="speedIndex" title="Median of (time on a question ÷ that question's typical time). 1.0 = typical, 0.5 = twice as fast.">Speed index</th>
+            <th>Speed signals</th>
+          </tr>
+        </thead>
+        <tbody id="timeBody"></tbody>
+      </table>
+    </div>
+  </section>
+
 </main>
 
 <script type="module" src="app.js"></script>

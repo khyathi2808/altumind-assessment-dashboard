@@ -10,6 +10,7 @@ const charts = {}; // Chart.js instances, destroyed and rebuilt on each refresh
 
 let STATE = { rubrics: null, responses: [], sessions: [], scores: [], candidates: [], itemStats: {}, summary: null };
 let sort = { key: "rank", dir: "asc" };
+let timeSort = { key: "rank", dir: "asc" }, timeOnlyFlagged = false; // time-analysis table, independent of the leaderboard
 let filters = { role: "all", status: "all", integrity: "all", search: "" };
 
 /** Leaderboard integrity filter: value -> [label, predicate]. */
@@ -32,6 +33,13 @@ async function init() {
   $("#roleFilter").addEventListener("change", e => { filters.role = e.target.value; renderLeaderboard(); });
   $("#statusFilter").addEventListener("change", e => { filters.status = e.target.value; renderLeaderboard(); });
   $("#integrityFilter").addEventListener("change", e => { filters.integrity = e.target.value; renderLeaderboard(); });
+  $("#timeOnlyFlagged").addEventListener("change", e => { timeOnlyFlagged = e.target.checked; renderTimeTable(); });
+  document.querySelectorAll("#timeTable thead th[data-tsort]").forEach(th => th.addEventListener("click", () => {
+    const key = th.dataset.tsort;
+    timeSort.dir = timeSort.key === key && timeSort.dir === "asc" ? "desc" : "asc";
+    timeSort.key = key;
+    renderTimeTable();
+  }));
   $("#searchBox").addEventListener("input", e => { filters.search = e.target.value.toLowerCase(); renderLeaderboard(); });
   document.querySelectorAll("#leaderboardTable thead th[data-sort]").forEach(th => {
     th.addEventListener("click", () => {
@@ -89,7 +97,7 @@ async function loadAndRender(forceShowErrors) {
     const data = isSheetUrl(endpoint) ? await fetchFromSheet(endpoint) : await fetchAssessmentData(endpoint, key);
     STATE.rubrics = data.rubrics; STATE.responses = data.responses; STATE.sessions = data.sessions; STATE.scores = data.scores;
     const result = analyse(STATE.rubrics, STATE.responses, STATE.sessions, STATE.scores, CONFIG);
-    STATE.candidates = result.candidates; STATE.itemStats = result.itemStats; STATE.summary = result.summary;
+    STATE.candidates = result.candidates; STATE.itemStats = result.itemStats; STATE.summary = result.summary; STATE.timing = result.timing;
     $("#connectScreen").classList.add("hidden");
     $("#loadingScreen").classList.add("hidden");
     $("#dashboard").classList.remove("hidden");
@@ -131,13 +139,15 @@ function roleLabel(id) { return (STATE.rubrics.roles && STATE.rubrics.roles[id])
 function renderAll() {
   renderStatCards();
   renderLeaderboard(); // plain HTML: render it before the charts so it never depends on Chart.js
+  renderTimeCards(); renderTimeTable();
   if (typeof Chart === "undefined") {
     setStatus("Charts unavailable: the Chart.js library didn't load (offline, or the CDN is blocked).");
     return;
   }
   // Each chart on its own, so one failure leaves the rest of the dashboard standing.
   [renderFunnelChart, renderStatusChart, renderRoleChart, renderScoreHistograms,
-   renderGradesChart, renderItemDifficultyChart, renderScoringCoverageChart].forEach(fn => {
+   renderGradesChart, renderItemDifficultyChart, renderScoringCoverageChart,
+   renderTimeScatter, renderTimeRankChart].forEach(fn => {
     try { fn(); } catch (err) { console.error(fn.name + " failed:", err); }
   });
 }
@@ -479,3 +489,109 @@ function exportCsv() {
 }
 
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m])); }
+
+/* ---------- time analysis (section below the leaderboard) ---------- */
+const fmtMin = sec => (sec == null ? "n/a" : Math.round(sec / 60) + " min");
+const fmtSec = sec => (sec == null ? "n/a" : Math.round(sec) + " s");
+const SPEED_COLOR = () => getComputedStyle(document.documentElement).getPropertyValue("--speed").trim() || "#5b3fa8";
+const NORMAL_COLOR = () => (matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light" ? "#7d786d" : "#a9a59c");
+
+function renderTimeCards() {
+  const tm = STATE.timing;
+  const cards = [
+    ["Median time spent (ranked)", tm.medianTotalMin == null ? "n/a" : Math.round(tm.medianTotalMin) + " min"],
+    ["Median avg time per question", fmtSec(tm.medianAvgSec)],
+    ["Candidates with a speed signal", tm.reviewN],
+    ["↳ faster than typing", tm.byKind.typing],
+    ["↳ inserted-text marks", tm.byKind.marks],
+    ["↳ fast & correct MCQs", tm.byKind.mcq],
+    ["↳ fast + top score", tm.byKind.fastTop]
+  ];
+  $("#timeCards").innerHTML = cards.map(([label, val]) => `
+    <div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join("");
+}
+
+function speedBadges(c) {
+  if (!c.timing.signals.length) return '<span class="muted">—</span>';
+  return '<div class="flag-badges">' + c.timing.signals.map(s => `<span class="badge badge-speed" title="${esc(s.text)}">${esc(s.label)}</span>`).join("") + "</div>";
+}
+
+function renderTimeTable() {
+  // Ranked candidates, plus any unranked one with a speed signal so nothing flagged is hidden.
+  let rows = STATE.candidates.filter(c => c.rank != null || c.timing.signals.length);
+  if (timeOnlyFlagged) rows = rows.filter(c => c.timing.signals.length);
+  const get = c => timeSort.key === "name" ? (c.name || c.email) : timeSort.key === "rank" ? c.rank : timeSort.key === "total" ? c.total : c.timing[timeSort.key];
+  rows.sort((a, b) => {
+    const av = get(a), bv = get(b);
+    if (av == null || bv == null) return av == null && bv == null ? 0 : av == null ? 1 : -1;
+    const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
+    return timeSort.dir === "asc" ? cmp : -cmp;
+  });
+  $("#timeCount").textContent = rows.length + " candidate" + (rows.length === 1 ? "" : "s");
+  $("#timeBody").innerHTML = rows.map(c => `
+    <tr>
+      <td>${c.rank == null ? '<span class="muted" title="Not ranked">—</span>' : "<b>" + c.rank + "</b>"}</td>
+      <td>${esc(c.name || "(no name)")}<div class="muted small">${esc(c.email)}</div></td>
+      <td><b>${fmtPct(c.total)}</b></td>
+      <td>${fmtMin(c.timing.totalSec)}<div class="muted small">${c.timing.n} timed answers</div></td>
+      <td>${fmtSec(c.timing.avgSec)}</td>
+      <td>${c.timing.speedIndex == null ? "n/a" : c.timing.speedIndex.toFixed(2)}</td>
+      <td class="wrap">${speedBadges(c)}</td>
+    </tr>`).join("");
+}
+
+function renderTimeScatter() {
+  const t = themeColors(), pts = STATE.candidates.filter(c => c.rank != null && c.timing.n);
+  const toPt = c => ({ x: Math.round(c.timing.totalSec / 60), y: Math.round(c.total), c });
+  const normal = pts.filter(c => !c.timing.signals.length).map(toPt), flagged = pts.filter(c => c.timing.signals.length).map(toPt);
+  destroy("timeScatter");
+  charts.timeScatter = new Chart($("#timeScatter"), {
+    type: "scatter",
+    data: { datasets: [
+      { label: "No speed signal", data: normal, backgroundColor: NORMAL_COLOR(), pointRadius: 4, pointHoverRadius: 6 },
+      { label: "Speed signal", data: flagged, backgroundColor: SPEED_COLOR(), pointRadius: 6, pointHoverRadius: 8 }
+    ] },
+    options: {
+      plugins: {
+        legend: { labels: { color: t.text, boxWidth: 10 } },
+        tooltip: { callbacks: { label: ctx => {
+          const c = ctx.raw.c;
+          return [`#${c.rank} ${c.name || c.email}: ${ctx.raw.y}% in ${ctx.raw.x} min`].concat(c.timing.signals.map(s => "• " + s.label));
+        } } }
+      },
+      scales: {
+        x: { title: { display: true, text: "Time spent (minutes)", color: t.text }, ticks: { color: t.text }, grid: { color: t.grid }, beginAtZero: true },
+        y: { title: { display: true, text: "Total score %", color: t.text }, ticks: { color: t.text }, grid: { color: t.grid }, min: 0, max: 100 }
+      }
+    }
+  });
+}
+
+function renderTimeRankChart() {
+  const t = themeColors();
+  const top = STATE.candidates.filter(c => c.rank != null).sort((a, b) => a.rank - b.rank).slice(0, 20);
+  destroy("timeRank");
+  charts.timeRank = new Chart($("#timeRankChart"), {
+    type: "bar",
+    data: {
+      labels: top.map(c => `#${c.rank} ${(c.name || c.email).slice(0, 18)} · ${fmtMin(c.timing.totalSec)}`),
+      datasets: [{ label: "Total score %", data: top.map(c => Math.round(c.total)),
+        backgroundColor: top.map(c => c.timing.signals.length ? SPEED_COLOR() : t.series[0]), borderRadius: 2 }]
+    },
+    options: {
+      indexAxis: "y", aspectRatio: 0.9,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => {
+          const c = top[ctx.dataIndex];
+          return [`Total ${Math.round(c.total)}% · ${fmtMin(c.timing.totalSec)} · avg ${fmtSec(c.timing.avgSec)}/question · speed ${c.timing.speedIndex == null ? "n/a" : c.timing.speedIndex.toFixed(2)}`]
+            .concat(c.timing.signals.map(s => "• " + s.label));
+        } } }
+      },
+      scales: {
+        x: { min: 0, max: 100, ticks: { color: t.text }, grid: { color: t.grid }, title: { display: true, text: "Total score %", color: t.text } },
+        y: { ticks: { color: t.text, autoSkip: false, font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}

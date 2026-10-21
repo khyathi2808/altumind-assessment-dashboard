@@ -108,7 +108,8 @@ export function analyse(rubrics, responses, sessions, scores, config) {
       sel: norm(r["Selected Option"]),
       correctCol: norm(r["Correct?"]).toLowerCase(), // the sheet's own MCQ marking, used when the rubric has no key
       video: norm(r["Video Link"]),
-      time: Number(r["Time Spent (sec)"]) || 0
+      time: Number(r["Time Spent (sec)"]) || 0,
+      autoSubmitted: norm(r["Auto-submitted (timeout)"]).toLowerCase() === "yes" // its time only covers the last visit
     };
   });
 
@@ -208,7 +209,7 @@ export function analyse(rubrics, responses, sessions, scores, config) {
 
   const candidates = [...cands.values()];
   applyRanks(candidates);
-  return { candidates, itemStats: computeItemStats(candidates, R), summary: computeSummary(candidates, config) };
+  return { candidates, itemStats: computeItemStats(candidates, R), summary: computeSummary(candidates, config), timing: computeTiming(candidates, config) };
 }
 
 function applyGatesAndStatus(cands, config) {
@@ -249,6 +250,74 @@ function applyRanks(candidates) {
   ranked.forEach((c, i) => { c.rank = i + 1; });
   const perRole = {};
   ranked.forEach(c => c.roles.forEach(r => { perRole[r] = (perRole[r] || 0) + 1; c.roleRank[r] = perRole[r]; }));
+}
+
+/**
+ * Time analysis. Adds c.timing to each candidate and returns a summary; changes nothing else.
+ *
+ * Only "usable" timings count: answered, time > 0, not auto-submitted (an auto-submitted
+ * answer's time only covers the last visit, e.g. 4s for a 200-character answer), and not
+ * video (the recording time isn't in Time Spent). Speed index = the candidate's median of
+ * (their time / that question's median time): 1.0 is typical, 0.5 is twice as fast. A median
+ * so one long pause doesn't swing it.
+ *
+ * Signals are reasons for a person to look, not verdicts:
+ *  - typing: a written answer appeared faster than anyone types (paste is blocked in the app)
+ *  - marks:  curly quotes / em dash in a written answer; the test box types straight quotes,
+ *            so these mean the text was inserted, not typed
+ *  - mcq:    many correct MCQs answered in a few seconds
+ *  - fastTop: fastest X% overall and top Y% score among ranked candidates
+ */
+function computeTiming(candidates, config) {
+  const T = config.timing;
+  const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  const usable = r => r.a && r.a.time > 0 && !r.a.autoSubmitted && !r.it.video && (r.it.kind === "mcq" ? r.answered : !r.empty);
+
+  const byQ = {};
+  candidates.forEach(c => Object.values(c.recs).forEach(r => { if (usable(r)) (byQ[r.qid] = byQ[r.qid] || []).push(r.a.time); }));
+  const qMedian = Object.fromEntries(Object.entries(byQ).map(([q, v]) => [q, median(v)]));
+
+  candidates.forEach(c => {
+    const recs = Object.values(c.recs).filter(usable);
+    // Average time per question, with each answer capped at 3x that question's median so a
+    // candidate who left the tab open on one question doesn't look slow everywhere.
+    const capped = recs.map(r => Math.min(r.a.time, 3 * qMedian[r.qid]));
+    const signals = [];
+    const written = recs.filter(r => r.it.kind === "subjective");
+    const typed = written.filter(r => r.a.text.length >= T.minCharsForSpeed && r.a.text.length / r.a.time > T.maxCharsPerSec);
+    if (typed.length) signals.push({ kind: "typing", label: "Faster than typing", text: "Written answers that appeared faster than anyone can type: " +
+      typed.map(r => r.qid + " (" + r.a.text.length + " chars in " + r.a.time + "s)").join(", ") });
+    const marked = written.filter(r => /[‘’“”—]/.test(r.a.text));
+    if (marked.length) signals.push({ kind: "marks", label: "Inserted text", text: "Curly quotes or em dashes, which the test box doesn't type, in: " + marked.map(r => r.qid).join(", ") });
+    const fastMcq = recs.filter(r => r.it.kind === "mcq" && r.correct && r.a.time < T.fastMcqSec);
+    if (fastMcq.length >= T.fastMcqMin) signals.push({ kind: "mcq", label: "Fast & correct MCQs", text: fastMcq.length + " correct MCQs answered in under " + T.fastMcqSec + "s each (typical is about 25s)" });
+    c.timing = {
+      totalSec: recs.reduce((a, r) => a + r.a.time, 0),
+      avgSec: capped.length ? capped.reduce((a, b) => a + b, 0) / capped.length : null,
+      speedIndex: median(recs.map(r => r.a.time / qMedian[r.qid])),
+      n: recs.length,
+      signals
+    };
+  });
+
+  // "Fast overall + top score" needs the ranked pool to compare against.
+  const ranked = candidates.filter(c => c.rank != null && c.timing.speedIndex != null);
+  const pctile = (vals, p) => { const s = vals.slice().sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(p / 100 * s.length))] : null; };
+  const fastCut = pctile(ranked.map(c => c.timing.speedIndex), T.fastestPct);
+  const topCut = pctile(ranked.map(c => c.total), 100 - T.topScorePct);
+  ranked.forEach(c => {
+    if (c.timing.speedIndex <= fastCut && c.total >= topCut) c.timing.signals.push({ kind: "fastTop", label: "Fast + top score",
+      text: "Among the fastest " + T.fastestPct + "% (speed index " + c.timing.speedIndex.toFixed(2) + ") and in the top " + T.topScorePct + "% by total score" });
+  });
+
+  const count = k => candidates.filter(c => c.timing.signals.some(s => s.kind === k)).length;
+  return {
+    qMedian,
+    medianTotalMin: median(ranked.map(c => c.timing.totalSec / 60)),
+    medianAvgSec: median(ranked.map(c => c.timing.avgSec).filter(x => x != null)),
+    reviewN: candidates.filter(c => c.timing.signals.length).length,
+    byKind: { typing: count("typing"), marks: count("marks"), mcq: count("mcq"), fastTop: count("fastTop") }
+  };
 }
 
 /** MCQ difficulty (% correct) and discrimination (top-27% minus bottom-27% correct rate,
