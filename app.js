@@ -10,7 +10,17 @@ const charts = {}; // Chart.js instances, destroyed and rebuilt on each refresh
 
 let STATE = { rubrics: null, responses: [], sessions: [], scores: [], candidates: [], itemStats: {}, summary: null };
 let sort = { key: "rank", dir: "asc" };
-let filters = { role: "all", status: "all", search: "" };
+let filters = { role: "all", status: "all", integrity: "all", search: "" };
+
+/** Leaderboard integrity filter: value -> [label, predicate]. */
+const INTEGRITY_FILTERS = {
+  all: ["All sessions", () => true],
+  clean: ["Finished both sessions themselves", c => c.finishedBoth],
+  tab: ["Switched tabs (integrity review)", c => c.tabSwitch],
+  timeout: ["Ran out of time only", c => c.timeoutOnly],
+  none: ["No flags", c => !c.integrityFlags.length],
+  noend: ["Session with no end record", c => c.notes.length > 0]
+};
 
 init();
 
@@ -21,6 +31,7 @@ async function init() {
   $("#refreshBtn").addEventListener("click", () => loadAndRender(true));
   $("#roleFilter").addEventListener("change", e => { filters.role = e.target.value; renderLeaderboard(); });
   $("#statusFilter").addEventListener("change", e => { filters.status = e.target.value; renderLeaderboard(); });
+  $("#integrityFilter").addEventListener("change", e => { filters.integrity = e.target.value; renderLeaderboard(); });
   $("#searchBox").addEventListener("input", e => { filters.search = e.target.value.toLowerCase(); renderLeaderboard(); });
   document.querySelectorAll("#leaderboardTable thead th[data-sort]").forEach(th => {
     th.addEventListener("click", () => {
@@ -109,6 +120,10 @@ function populateFilters() {
   const statusSel = $("#statusFilter");
   statusSel.innerHTML = '<option value="all">All statuses</option>' +
     Object.keys(STATUS).map(s => `<option value="${s}">${STATUS[s].label}</option>`).join("");
+  $("#integrityFilter").innerHTML = Object.entries(INTEGRITY_FILTERS).map(([k, [label, test]]) =>
+    `<option value="${k}">${label}${k === "all" ? "" : " (" + STATE.candidates.filter(test).length + ")"}</option>`).join("");
+  // Rebuilt on every refresh: keep showing the filters that are still applied.
+  roleSel.value = filters.role; statusSel.value = filters.status; $("#integrityFilter").value = filters.integrity;
 }
 
 function roleLabel(id) { return (STATE.rubrics.roles && STATE.rubrics.roles[id]) || id; }
@@ -133,11 +148,13 @@ function renderStatCards() {
   const cards = [
     ["Candidates (real)", s.n],
     ["Ranked (all sections scored)", s.rankedN],
-    ["Completed both sessions", s.endedBoth + " / " + s.n],
+    // All counts are candidates: finished + auto-submitted = ended both; tab switch + timeout only = flagged.
+    ["Ended both sessions", s.endedBoth + " / " + s.n],
+    ["↳ finished both themselves", s.finishedBothN],
+    ["↳ auto-submitted at least once", s.autoSubmittedBothN],
     ["Meets all gates", (s.byStatus.pass || 0)],
-    ["Flagged for integrity review", s.flaggedN],
-    ["Sessions auto-submitted (tab hidden)", s.tabHiddenFlags],
-    ["Sessions auto-submitted (time ran out)", s.timeLimitFlags],
+    ["Integrity review: switched tabs", s.tabSwitchN],
+    ["Ran out of time only (not an integrity issue)", s.timeoutOnlyN],
     ["AI-scored items", s.aiScoredN],
     ["Human-scored items", s.humanScoredN],
     ["Still unscored", s.unscoredN],
@@ -183,21 +200,44 @@ function themeColors() {
   };
 }
 
+/** Funnel with the "ended" steps split by how the session ended, so a forced submission
+ *  isn't shown as a completion. Started / gate rows are a single segment. */
 function renderFunnelChart() {
-  const c = STATE.candidates;
-  const steps = [
-    ["Started Session 1", c.filter(x => x.sess.session1).length],
-    ["Completed Session 1", c.filter(x => x.ended.s1).length],
-    ["Started Session 2", c.filter(x => x.sess.session2).length],
-    ["Completed Session 2", c.filter(x => x.ended.s2).length],
-    ["Meets all gates", c.filter(x => x.status === "pass").length]
+  const c = STATE.candidates, n = (k, v) => c.filter(x => x.sessEnd[k] === v).length;
+  const rows = [
+    { label: "Started Session 1", reached: c.filter(x => x.sess.session1).length },
+    { label: "Ended Session 1", finished: n("s1", "finished"), tab: n("s1", "tab"), timeout: n("s1", "timeout") },
+    { label: "Started Session 2", reached: c.filter(x => x.sess.session2).length },
+    { label: "Ended Session 2", finished: n("s2", "finished"), tab: n("s2", "tab"), timeout: n("s2", "timeout") },
+    { label: "Meets all gates", reached: c.filter(x => x.status === "pass").length }
   ];
-  const t = themeColors();
+  const t = themeColors(), dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
+  const seg = (label, key, color) => ({ label, data: rows.map(r => r[key] || 0), backgroundColor: color, borderColor: dark ? "#1d1a14" : "#ffffff", borderWidth: 1, borderSkipped: false });
   destroy("funnel");
   charts.funnel = new Chart($("#funnelChart"), {
     type: "bar",
-    data: { labels: steps.map(s => s[0]), datasets: [{ data: steps.map(s => s[1]), backgroundColor: t.series[0] }] },
-    options: baseBarOptions(t, { indexAxis: "y" })
+    data: {
+      labels: rows.map(r => r.label),
+      datasets: [
+        seg("Reached", "reached", t.series[0]),
+        seg("Finished themselves", "finished", t.series[0]),
+        seg("Auto-submitted: tab switch", "tab", t.series[1]),
+        seg("Auto-submitted: time ran out", "timeout", dark ? "#6b675e" : "#a9a59c")
+      ]
+    },
+    options: {
+      indexAxis: "y",
+      aspectRatio: 1.1, // taller than the default 2:1 so five rows plus the legend stay readable
+      interaction: { mode: "index", axis: "y", intersect: false },
+      plugins: {
+        legend: { position: "top", labels: { color: t.text, boxWidth: 10, font: { size: 11 }, filter: i => i.text !== "Reached" } },
+        tooltip: { filter: i => i.raw > 0 }
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: t.text }, grid: { color: t.grid }, beginAtZero: true },
+        y: { stacked: true, ticks: { color: t.text, autoSkip: false }, grid: { display: false } }
+      }
+    }
   });
 }
 
@@ -368,6 +408,7 @@ function filteredSortedRows() {
   let rows = STATE.candidates.slice();
   if (filters.role !== "all") rows = rows.filter(c => c.roles.includes(filters.role));
   if (filters.status !== "all") rows = rows.filter(c => c.status === filters.status);
+  if (filters.integrity !== "all") rows = rows.filter(INTEGRITY_FILTERS[filters.integrity][1]);
   if (filters.search) rows = rows.filter(c => (c.name + " " + c.email).toLowerCase().includes(filters.search));
 
   const get = c => {
@@ -386,6 +427,19 @@ function filteredSortedRows() {
   return rows;
 }
 
+/** Inline badges, one per flagged session: amber for a tab switch (integrity), gray for a
+ *  timeout (not integrity), blue for a missing end record (data check). The full sentence,
+ *  including how many answers were left blank, is in each badge's hover text. */
+function flagBadges(c) {
+  const style = { tab: ["warn", "Tab switch"], timeout: ["plain", "Timed out"], noend: ["info", "No end record"] };
+  const items = c.integrityFlags.concat(c.notes);
+  if (!items.length) return '<span class="muted">—</span>';
+  return '<div class="flag-badges">' + items.map(f => {
+    const [tone, label] = style[f.kind];
+    return `<span class="badge badge-${tone}" title="${esc(f.text)}">${label} · S${f.session}</span>`;
+  }).join("") + "</div>";
+}
+
 function renderLeaderboard() {
   const rows = filteredSortedRows();
   $("#leaderboardCount").textContent = rows.length + " candidate" + (rows.length === 1 ? "" : "s");
@@ -393,24 +447,28 @@ function renderLeaderboard() {
     <tr>
       <td>${rankOf(c) == null ? '<span class="muted" title="Not ranked: needs both sessions completed and a score in every section">—</span>' : "<b>" + rankOf(c) + "</b>" + (c.provisional ? '<span class="muted" title="Provisional: some answers not graded yet">*</span>' : "")}</td>
       <td>${esc(c.name || "(no name)")}<div class="muted small">${esc(c.email)}</div></td>
-      <td>${c.roles.map(roleLabel).join(", ")}</td>
+      <td class="wrap">${c.roles.map(roleLabel).join(", ")}</td>
       <td>${fmtPct(c.quant.pct)}<div class="muted small">${esc(sectionRaw(c, "quant"))}</div></td>
       <td>${fmtPct(c.comm.pct)}<div class="muted small">${esc(sectionRaw(c, "comm"))}</div></td>
       <td>${fmtPct(c.beh.pct)}<div class="muted small">${esc(sectionRaw(c, "beh"))}</div></td>
       <td><b>${fmtPct(c.total)}</b></td>
       <td><span class="badge badge-${STATUS[c.status].tone}">${STATUS[c.status].label}</span></td>
       <td>${c.unscored.length || "—"}</td>
-      <td${c.integrityFlags.length ? ` title="${esc(c.integrityFlags.map(f => f.text).join("\n"))}" style="cursor:help"` : ""}>${c.integrityFlags.length || "—"}</td>
+      <td class="wrap">${flagBadges(c)}</td>
     </tr>`).join("");
 }
 function exportCsv() {
   const pct = p => (p == null ? "" : Math.round(p * 10) / 10);
   const cell = v => { const s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const head = ["Rank", "Provisional", "Name", "Email", "Roles", "Quant %", "Comm %", "Beh %", "Total %", "Status", "Unscored answers", "Integrity flags"];
+  const END = { finished: "Finished", tab: "Auto-submitted (tab switch)", timeout: "Auto-submitted (time ran out)", open: "Started, no end record", none: "Not started", auto: "Auto-submitted" };
+  const head = ["Rank", "Provisional", "Name", "Email", "Roles", "Quant %", "Comm %", "Beh %", "Total %", "Status",
+    "Unscored answers", "Session 1 end", "Session 2 end", "Tab switches", "Timeouts", "Answers left blank by auto-submit", "Notes"];
   const lines = [head].concat(filteredSortedRows().map(c => [
     rankOf(c) ?? "", c.rank != null && c.provisional ? "yes" : "", c.name, c.email, c.roles.map(roleLabel).join("; "),
     pct(c.quant.pct), pct(c.comm.pct), pct(c.beh.pct), pct(c.total), STATUS[c.status].label,
-    c.unscored.length, c.integrityFlags.map(f => f.text).join("; ")
+    c.unscored.length, END[c.sessEnd.s1], END[c.sessEnd.s2],
+    c.integrityFlags.filter(f => f.kind === "tab").length, c.integrityFlags.filter(f => f.kind === "timeout").length,
+    c.integrityFlags.reduce((a, f) => a + f.blanks, 0), c.notes.map(n => n.text).join("; ")
   ])).map(r => r.map(cell).join(","));
   const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");

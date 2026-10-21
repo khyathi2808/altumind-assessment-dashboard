@@ -109,6 +109,7 @@
         <input id="searchBox" type="search" placeholder="Search name or email…">
         <select id="roleFilter"></select>
         <select id="statusFilter"></select>
+        <select id="integrityFilter" title="How the candidate's sessions ended"></select>
         <span id="leaderboardCount" class="muted small"></span>
         <button id="exportBtn" class="btn" type="button">Download CSV</button>
       </div>
@@ -135,7 +136,11 @@
     <p class="muted small">
       Ranked: candidates who completed both sessions and have a score in every section, by weighted total (ties: weakest section,
       then Quant). — means not ranked yet; * means provisional because some answers are still
-      being graded. For per-question scoring, model answers, or to score an individual answer, use your
+      being graded. Flags, one per session: <span class="badge badge-warn">Tab switch</span> the
+      session was auto-submitted after the candidate left the test window (integrity review);
+      <span class="badge badge-plain">Timed out</span> it was auto-submitted when time ran out (not an
+      integrity issue); <span class="badge badge-info">No end record</span> it never sent an end
+      record (check by hand). Hover a badge for how many answers it left blank. For per-question scoring, model answers, or to score an individual answer, use your
       reviewer dashboard (review.html) — this view is for the aggregate picture only.
     </p>
   </section>

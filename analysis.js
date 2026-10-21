@@ -179,12 +179,29 @@ export function analyse(rubrics, responses, sessions, scores, config) {
     c.humanScoredN = recs.filter(r => r.score && r.score.source === "human").length;
     c.provisional = c.unscored.length > 0;
 
-    c.integrityFlags = [];
-    Object.entries(c.sess).forEach(([sid, s]) => {
-      const label = sid === "session1" ? "Session 1" : "Session 2";
-      if (s.reason === "tab_hidden") c.integrityFlags.push({ level: "hard", text: label + " ended automatically (tab switched/hidden)" });
-      else if (s.reason === "time_limit") c.integrityFlags.push({ level: "info", text: label + " ran out of time" });
+    // How each session ended: finished (candidate pressed Finish), tab (auto-submitted after a
+    // tab switch), timeout (auto-submitted when time ran out), open (started, no end record),
+    // none (never started).
+    const endOf = s => !s ? "none" : !s.endedAt ? "open"
+      : s.reason === "completed" ? "finished" : s.reason === "tab_hidden" ? "tab" : s.reason === "time_limit" ? "timeout" : "auto";
+    c.sessEnd = { s1: endOf(c.sess.session1), s2: endOf(c.sess.session2) };
+    c.finishedBoth = c.sessEnd.s1 === "finished" && c.sessEnd.s2 === "finished";
+
+    // integrityFlags: one per auto-submitted session. "hard" = tab switch (an integrity
+    // concern), "info" = ran out of time (not one). blanks = answers that session left
+    // unanswered, which score 0. notes: data oddities for a reviewer, not integrity flags.
+    c.integrityFlags = []; c.notes = [];
+    [[1, "s1"], [2, "s2"]].forEach(([n, k]) => {
+      const blanks = recs.filter(r => (n === 2) === (r.it.section === "beh") && r.autoZero).length;
+      const lost = blanks ? " — " + blanks + " question" + (blanks === 1 ? "" : "s") + " left unanswered (scored 0)" : "";
+      if (c.sessEnd[k] === "tab") c.integrityFlags.push({ level: "hard", kind: "tab", session: n, blanks, text: "Session " + n + " ended automatically (tab switched/hidden)" + lost });
+      else if (c.sessEnd[k] === "timeout") c.integrityFlags.push({ level: "info", kind: "timeout", session: n, blanks, text: "Session " + n + " ran out of time" + lost });
+      // Only Session 1 → it normally has to end before Session 2 can start, so an open Session 1
+      // next to an ended Session 2 is a lost record. An open Session 2 is ordinary drop-off.
+      if (n === 1 && c.sessEnd.s1 === "open" && c.ended.s2) c.notes.push({ kind: "noend", session: 1, text: "Session 1 has no end record (started, never submitted), but Session 2 ended — check by hand" });
     });
+    c.tabSwitch = c.integrityFlags.some(f => f.kind === "tab");
+    c.timeoutOnly = !c.tabSwitch && c.integrityFlags.some(f => f.kind === "timeout");
   });
 
   applyGatesAndStatus(cands, config);
@@ -273,15 +290,16 @@ function computeSummary(candidates, config) {
   const avg = key => { const v = candidates.map(c => c[key] && c[key].pct).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
   const flaggedN = candidates.filter(c => c.integrityFlags.length).length;
   const rankedN = candidates.filter(c => c.rank != null).length;
-  // Integrity flags split by cause. These count sessions, not candidates: one candidate can
-  // have a flag on each session, so the two add up to more than flaggedN.
-  let tabHiddenFlags = 0, timeLimitFlags = 0;
-  candidates.forEach(c => c.integrityFlags.forEach(f => {
-    if (f.level === "hard") tabHiddenFlags++;
-    else if (f.level === "info") timeLimitFlags++;
-  }));
+  // Everything below counts candidates, so the pairs add up: tabSwitchN + timeoutOnlyN =
+  // flaggedN, and finishedBothN + autoSubmittedBothN = endedBoth.
+  const tabSwitchN = candidates.filter(c => c.tabSwitch).length;
+  const timeoutOnlyN = candidates.filter(c => c.timeoutOnly).length;
+  const finishedBothN = candidates.filter(c => c.finishedBoth).length;
+  const autoSubmittedBothN = endedBoth - finishedBothN;
+  const noEndN = candidates.filter(c => c.notes.length).length;
   return {
-    n, startedBoth, endedBoth, byStatus, byRole, rankedN, tabHiddenFlags, timeLimitFlags,
+    n, startedBoth, endedBoth, byStatus, byRole, rankedN,
+    tabSwitchN, timeoutOnlyN, finishedBothN, autoSubmittedBothN, noEndN,
     aiScoredN, humanScoredN, unscoredN, flaggedN,
     sectionAverages: { quant: avg("quant"), comm: avg("comm"), beh: avg("beh") },
     priorityPool: candidates.filter(c => c.quant.mcq.pct != null && c.quant.mcq.pct >= config.mcqPriorityMin).length

@@ -81,9 +81,14 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 th { cursor: pointer; color: var(--muted); font-weight: 600; user-select: none; }
 th:hover { color: var(--ink); }
 
+.flag-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.flag-badges .badge { cursor: help; }
 .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .badge-good { background: var(--good-bg); color: var(--good); }
 .badge-warn { background: var(--warn-bg); color: var(--warn); }
 .badge-bad { background: var(--bad-bg); color: var(--bad); }
 .badge-info { background: var(--info-bg); color: var(--info); }
 .badge-plain { background: var(--plain-bg); color: var(--plain); }
+
+/* Roles and flag badges wrap instead of pushing Unscored / Flags off the right edge. */
+#leaderboardTable td.wrap { white-space: normal; min-width: 110px; max-width: 200px; }
