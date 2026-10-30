@@ -35,6 +35,16 @@ export const CONFIG = {
   // sort in the leaderboard — mirrors the same cutoff the AI grading pipeline uses.
   mcqPriorityMin: 75,
 
+  // Batches (see batches.js). A candidate belongs to the batch of the day they first appear;
+  // a gap of more than batchGapDays between candidates starts a new batch. A group smaller
+  // than pilotMaxCandidates is labelled "Pilot" and isn't numbered.
+  batchGapDays: 3,
+  pilotMaxCandidates: 15,
+  // To set batches by hand instead, list them here (dates inclusive), e.g.
+  //   batches: [{ name: "Batch 1", from: "2026-10-15", to: "2026-10-18" },
+  //             { name: "Batch 2", from: "2026-10-29", to: "2026-10-31" }],
+  batches: [],
+
   // Time analysis (the section below the leaderboard). These raise "speed review" signals:
   // things worth a person checking, never proof of cheating on their own.
   timing: {

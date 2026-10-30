@@ -1,9 +1,11 @@
 import { CONFIG } from "./config.js";
 import { fetchAssessmentData, fetchFromSheet, isSheetUrl, loadLocalSettings, ApiError } from "./dataAdapter.js";
 import { analyse, STATUS } from "./analysis.js";
+import { detectBatches, filterToBatch } from "./batches.js";
 
 const LS_ENDPOINT = "assessmentDashboard:endpoint";
 const LS_KEY = "assessmentDashboard:adminKey"; // browser-local only — never written to this repo, see README
+const LS_BATCH = "assessmentDashboard:batch"; // sessionStorage: a new tab asks which batch again
 
 const $ = sel => document.querySelector(sel);
 const charts = {}; // Chart.js instances, destroyed and rebuilt on each refresh
@@ -30,6 +32,7 @@ async function init() {
   $("#connectForm").addEventListener("submit", onConnect);
   $("#changeBackend").addEventListener("click", showConnectScreen);
   $("#refreshBtn").addEventListener("click", () => loadAndRender(true));
+  $("#batchSelect").addEventListener("change", e => showBatch(e.target.value));
   $("#roleFilter").addEventListener("change", e => { filters.role = e.target.value; renderLeaderboard(); });
   $("#statusFilter").addEventListener("change", e => { filters.status = e.target.value; renderLeaderboard(); });
   $("#integrityFilter").addEventListener("change", e => { filters.integrity = e.target.value; renderLeaderboard(); });
@@ -68,6 +71,7 @@ async function init() {
 }
 
 function showConnectScreen() {
+  $("#batchScreen").classList.add("hidden");
   $("#connectScreen").classList.remove("hidden");
   $("#dashboard").classList.add("hidden");
 }
@@ -95,15 +99,16 @@ async function loadAndRender(forceShowErrors) {
   setStatus("Loading…");
   try {
     const data = isSheetUrl(endpoint) ? await fetchFromSheet(endpoint) : await fetchAssessmentData(endpoint, key);
-    STATE.rubrics = data.rubrics; STATE.responses = data.responses; STATE.sessions = data.sessions; STATE.scores = data.scores;
-    const result = analyse(STATE.rubrics, STATE.responses, STATE.sessions, STATE.scores, CONFIG);
-    STATE.candidates = result.candidates; STATE.itemStats = result.itemStats; STATE.summary = result.summary; STATE.timing = result.timing;
+    STATE.raw = data;
+    STATE.batches = detectBatches(data.responses, data.sessions, CONFIG);
     $("#connectScreen").classList.add("hidden");
     $("#loadingScreen").classList.add("hidden");
-    $("#dashboard").classList.remove("hidden");
-    populateFilters();
-    renderAll();
-    if (typeof Chart !== "undefined") setStatus("Updated " + new Date().toLocaleTimeString());
+    populateBatchSelect();
+    // Several batches and none picked yet in this tab: ask first, rather than mixing them.
+    const saved = sessionStorage.getItem(LS_BATCH);
+    const known = saved === "all" || STATE.batches.some(b => b.id === saved);
+    if (STATE.batches.length > 1 && !known) showBatchPicker();
+    else showBatch(known ? saved : STATE.batches.length ? STATE.batches[STATE.batches.length - 1].id : "all");
   } catch (err) {
     setStatus("");
     $("#loadingScreen").classList.add("hidden");
@@ -120,6 +125,51 @@ async function loadAndRender(forceShowErrors) {
 
 function setStatus(text) { $("#statusLine").textContent = text; }
 
+/* ---------- batches (batches.js splits the sheet by date) ---------- */
+function batchById(id) { return id === "all" ? null : STATE.batches.find(b => b.id === id) || null; }
+function batchText(b) { return b ? b.label + " · " + b.range : "All batches"; }
+
+function populateBatchSelect() {
+  const sel = $("#batchSelect");
+  sel.innerHTML = STATE.batches.map(b => `<option value="${b.id}">${esc(batchText(b))} (${b.n})</option>`).join("") +
+    (STATE.batches.length > 1 ? `<option value="all">All batches (${STATE.batches.reduce((a, b) => a + b.n, 0)})</option>` : "");
+  sel.classList.toggle("hidden", STATE.batches.length < 2);
+}
+
+function showBatchPicker() {
+  $("#dashboard").classList.add("hidden");
+  $("#batchScreen").classList.remove("hidden");
+  $("#batchSelect").classList.add("hidden"); // nothing chosen yet: don't show a batch as selected
+  setStatus("");
+  const option = (id, title, sub, n) => `
+    <button type="button" class="batch-option" data-batch="${id}">
+      <span><b>${esc(title)}</b><br><span class="muted">${esc(sub)}</span></span>
+      <span class="batch-n">${n}<span class="muted"> candidates</span></span>
+    </button>`;
+  // Newest batch first: it's usually the one being looked at.
+  $("#batchList").innerHTML = STATE.batches.slice().reverse().map(b =>
+      option(b.id, b.label + " · " + b.range, b.pilot ? "Small early group, probably a trial run" : "First started " + new Date(b.start).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }), b.n)).join("") +
+    option("all", "All batches together", "Everyone in the sheet, ranked against each other", STATE.batches.reduce((a, b) => a + b.n, 0));
+  $("#batchList").querySelectorAll("[data-batch]").forEach(btn => btn.addEventListener("click", () => showBatch(btn.dataset.batch)));
+}
+
+/** Analyse and render one batch ("all" = everyone) from the data already downloaded. */
+function showBatch(id) {
+  sessionStorage.setItem(LS_BATCH, id);
+  const batch = batchById(id), data = filterToBatch(STATE.raw, batch);
+  STATE.batchId = id;
+  STATE.rubrics = data.rubrics; STATE.responses = data.responses; STATE.sessions = data.sessions; STATE.scores = data.scores;
+  const result = analyse(STATE.rubrics, STATE.responses, STATE.sessions, STATE.scores, CONFIG);
+  STATE.candidates = result.candidates; STATE.itemStats = result.itemStats; STATE.summary = result.summary; STATE.timing = result.timing;
+  $("#batchSelect").value = id;
+  $("#batchSelect").classList.toggle("hidden", STATE.batches.length < 2);
+  $("#batchScreen").classList.add("hidden");
+  $("#dashboard").classList.remove("hidden");
+  populateFilters();
+  renderAll();
+  if (typeof Chart !== "undefined") setStatus((STATE.batches.length > 1 ? batchText(batch) + " · " : "") + "Updated " + new Date().toLocaleTimeString());
+}
+
 function populateFilters() {
   const roles = new Set(); STATE.candidates.forEach(c => c.roles.forEach(r => roles.add(r)));
   const roleSel = $("#roleFilter");
@@ -132,6 +182,9 @@ function populateFilters() {
     `<option value="${k}">${label}${k === "all" ? "" : " (" + STATE.candidates.filter(test).length + ")"}</option>`).join("");
   // Rebuilt on every refresh: keep showing the filters that are still applied.
   roleSel.value = filters.role; statusSel.value = filters.status; $("#integrityFilter").value = filters.integrity;
+  // A batch without that role (or status) has no such option: fall back to "all" rather than an empty table.
+  if (roleSel.value !== filters.role) { filters.role = "all"; roleSel.value = "all"; }
+  if (statusSel.value !== filters.status) { filters.status = "all"; statusSel.value = "all"; }
 }
 
 function roleLabel(id) { return (STATE.rubrics.roles && STATE.rubrics.roles[id]) || id; }
@@ -483,7 +536,7 @@ function exportCsv() {
   const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "candidate-ranking-" + new Date().toISOString().slice(0, 10) + (filters.role !== "all" ? "-" + filters.role : "") + ".csv";
+  a.download = "candidate-ranking-" + (STATE.batches && STATE.batches.length > 1 ? (STATE.batchId === "all" ? "all-batches" : (batchById(STATE.batchId) || {}).label || "").replace(/\s+/g, "-").toLowerCase() + "-" : "") + new Date().toISOString().slice(0, 10) + (filters.role !== "all" ? "-" + filters.role : "") + ".csv";
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }

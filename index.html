@@ -15,6 +15,7 @@
   <h1>Assessment Analytics Dashboard</h1>
   <div class="topbar-right">
     <span id="statusLine" class="muted small"></span>
+    <select id="batchSelect" class="hidden" title="Which assessment batch to show"></select>
     <button id="refreshBtn" class="btn">Refresh</button>
     <button id="changeBackend" class="btn btn-ghost">Change backend</button>
   </div>
@@ -22,6 +23,18 @@
 
 <section id="loadingScreen" class="connect-screen hidden">
   <p class="muted">Loading assessment data from the Google Sheet… (about 7,500 answers, a few seconds)</p>
+</section>
+
+<section id="batchScreen" class="connect-screen hidden">
+  <div class="connect-card batch-card">
+    <h2>Choose a batch</h2>
+    <p class="muted">
+      The sheet holds more than one assessment batch. Each is analysed on its own — ranks,
+      pass rates and time comparisons are within that batch. Candidates are grouped by the day
+      they first started; you can switch batch any time from the top bar.
+    </p>
+    <div id="batchList" class="batch-list"></div>
+  </div>
 </section>
 
 <section id="connectScreen" class="connect-screen">

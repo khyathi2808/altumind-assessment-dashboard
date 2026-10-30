@@ -101,3 +101,15 @@ th:hover { color: var(--ink); }
 .badge-speed { background: var(--speed-bg); color: var(--speed); }
 #timeTable td.wrap { white-space: normal; min-width: 140px; max-width: 320px; }
 #timeTable th { cursor: pointer; }
+
+/* Batch picker (shown when the sheet holds more than one batch) */
+.batch-card { max-width: 560px; }
+.batch-list { display: flex; flex-direction: column; gap: 10px; }
+.batch-option {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left;
+  padding: 14px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.batch-option:hover { border-color: var(--accent); }
+.batch-option b { font-size: 15px; }
+.batch-option .muted { font-size: 12px; }
+.batch-option .batch-n { font-size: 20px; font-weight: 700; white-space: nowrap; }
